@@ -4,7 +4,6 @@ from fastapi import FastAPI, File, UploadFile, WebSocket
 from fastapi.responses import JSONResponse
 from ultralytics import YOLO
 from io import BytesIO
-from PIL import Image
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 import websockets
@@ -14,7 +13,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", ""],
+    allow_origins=["http://localhost:3000", "https://edge21-crt9y.ondigitalocean.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -94,7 +93,7 @@ async def video_detect(websocket: WebSocket):
             if not ret:
                 print("Failed to capture frame")
                 await websocket.send_json({"error": "Failed to capture frame"})
-                await asyncio.sleep(0.5)  # Short delay before retrying
+                await asyncio.sleep(0.5)
                 continue
 
             results = yolo_model(frame)
@@ -107,7 +106,7 @@ async def video_detect(websocket: WebSocket):
                     confidence = float(conf.item())
 
                     if class_id < 0 or class_id >= len(card_labels):
-                        continue  # Skip invalid detections
+                        continue 
 
                     detected_objects.append(
                         {
