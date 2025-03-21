@@ -14,21 +14,20 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", ""],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load YOLOv8 model
-yolo_model = YOLO("app/data/best5.pt")
+yolo_model = YOLO("app/data/best1.pt")
 
 
-# Function to get available cameras
+# Function to  available cameras
 def get_available_cameras():
     """Returns a list of available camera indices."""
     available_cameras = []
-    for i in range(10):  # Check first 10 indices
+    for i in range(10):
         cap = cv2.VideoCapture(i)
         if cap.isOpened():
             available_cameras.append(i)
@@ -36,7 +35,6 @@ def get_available_cameras():
     return available_cameras
 
 
-# Function to resize image
 def resize_stretch(image, target_size=(640, 640)):
     """Resize image to target size with stretching (no aspect ratio preservation)."""
     return cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
@@ -59,7 +57,6 @@ async def video_detect(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connection established, initializing camera...")
 
-    # Initialize camera
     cap = None
     try:
         # Get available cameras
@@ -69,9 +66,8 @@ async def video_detect(websocket: WebSocket):
             return
 
         print(f"Available Cameras: {cameras}")
-        camera_index = cameras[-1]  # Use last detected camera
+        camera_index = cameras[-1] 
 
-        # Open camera
         cap = cv2.VideoCapture(camera_index)
         if not cap.isOpened():
             await websocket.send_json({"error": "Could not open camera"})
@@ -80,28 +76,20 @@ async def video_detect(websocket: WebSocket):
         print(f"Camera {camera_index} initialized successfully")
         await websocket.send_json({"info": f"Camera {camera_index} initialized"})
 
-        # Allow camera to adjust
         time.sleep(1)
 
-        # Start processing loop
         while True:
-            # Check if client is still connected
             try:
-                # Non-blocking check for any client messages
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
-                # If client sends "stop", break the loop
                 if data.lower() == "stop":
                     await websocket.send_json({"info": "Stopping camera as requested"})
                     break
             except asyncio.TimeoutError:
-                # No message from client, continue with camera processing
                 pass
             except Exception as e:
-                # Connection likely closed
                 print(f"Client message error: {str(e)}")
                 break
 
-            # Capture frame
             ret, frame = cap.read()
             if not ret:
                 print("Failed to capture frame")
@@ -109,13 +97,8 @@ async def video_detect(websocket: WebSocket):
                 await asyncio.sleep(0.5)  # Short delay before retrying
                 continue
 
-            # Preprocess frame if needed
-            # frame = resize_stretch(frame)  # Uncomment if needed
-
-            # Run detection
             results = yolo_model(frame)
 
-            # Process results
             detected_objects = []
             for r in results:
                 for box, cls, conf in zip(r.boxes.xyxy, r.boxes.cls, r.boxes.conf):
@@ -134,11 +117,9 @@ async def video_detect(websocket: WebSocket):
                         }
                     )
 
-            # Send results to client
             print(f"Sending {len(detected_objects)} detections to client")
             await websocket.send_json({"detections": detected_objects})
 
-            # Short delay to control frame rate (adjust as needed)
             await asyncio.sleep(0.05)  # ~20 FPS
 
     except websockets.exceptions.ConnectionClosedOK:
@@ -152,7 +133,6 @@ async def video_detect(websocket: WebSocket):
         except:
             pass
     finally:
-        # Clean up resources
         print("Closing camera and WebSocket connection")
         if cap and cap.isOpened():
             cap.release()
