@@ -13,7 +13,11 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://edge21-crt9y.ondigitalocean.app"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://edge21-crt9y.ondigitalocean.app",
+        "https://hammerhead-app-4s7v6.ondigitalocean.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,7 +69,7 @@ async def video_detect(websocket: WebSocket):
             return
 
         print(f"Available Cameras: {cameras}")
-        camera_index = cameras[-1] 
+        camera_index = cameras[-1]
 
         cap = cv2.VideoCapture(camera_index)
         if not cap.isOpened():
@@ -106,7 +110,7 @@ async def video_detect(websocket: WebSocket):
                     confidence = float(conf.item())
 
                     if class_id < 0 or class_id >= len(card_labels):
-                        continue 
+                        continue
 
                     detected_objects.append(
                         {
