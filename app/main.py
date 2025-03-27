@@ -13,9 +13,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://edge21-crt9y.ondigitalocean.app",
+    allow_origins=["*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
