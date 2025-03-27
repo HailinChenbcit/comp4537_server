@@ -16,7 +16,6 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://edge21-crt9y.ondigitalocean.app",
-        "https://hammerhead-app-4s7v6.ondigitalocean.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -62,18 +61,25 @@ async def video_detect(websocket: WebSocket):
 
     try:
         while True:
-            # Receive binary image data from the client
+            print("⏳ Waiting for image frame...")
             data = await websocket.receive_bytes()
+            print(f"📸 Received {len(data)} bytes")
 
-            # Convert binary to NumPy image
+            # Decode to OpenCV frame
             np_arr = np.frombuffer(data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
             if frame is None:
+                print("❌ Frame decode failed")
                 await websocket.send_json({"error": "Invalid image data"})
                 continue
-
             # Run YOLO detection
-            results = yolo_model(frame)
+            try:
+                results = yolo_model(frame)
+            except Exception as e:
+                print(f"❌ YOLO inference error: {e}")
+                await websocket.send_json({"error": f"YOLO error: {str(e)}"})
+                continue
 
             detected_objects = []
             for r in results:
