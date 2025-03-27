@@ -54,52 +54,25 @@ def health_check():
 @app.websocket("/video-detect")
 async def video_detect(websocket: WebSocket):
     """
-    Handles real-time card detection using server-side camera.
-    Captures frames from camera, processes them with YOLO, and sends results to client.
+    Receives image frames from the client over WebSocket,
+    runs YOLO detection on each frame, and sends back detection results.
     """
     await websocket.accept()
-    print("WebSocket connection established, initializing camera...")
+    print("✅ WebSocket connection accepted")
 
-    cap = None
     try:
-        # Get available cameras
-        cameras = get_available_cameras()
-        if not cameras:
-            await websocket.send_json({"error": "No cameras found on server"})
-            return
-
-        print(f"Available Cameras: {cameras}")
-        camera_index = cameras[-1]
-
-        cap = cv2.VideoCapture(camera_index)
-        if not cap.isOpened():
-            await websocket.send_json({"error": "Could not open camera"})
-            return
-
-        print(f"Camera {camera_index} initialized successfully")
-        await websocket.send_json({"info": f"Camera {camera_index} initialized"})
-
-        time.sleep(1)
-
         while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
-                if data.lower() == "stop":
-                    await websocket.send_json({"info": "Stopping camera as requested"})
-                    break
-            except asyncio.TimeoutError:
-                pass
-            except Exception as e:
-                print(f"Client message error: {str(e)}")
-                break
+            # Receive binary image data from the client
+            data = await websocket.receive_bytes()
 
-            ret, frame = cap.read()
-            if not ret:
-                print("Failed to capture frame")
-                await websocket.send_json({"error": "Failed to capture frame"})
-                await asyncio.sleep(0.5)
+            # Convert binary to NumPy image
+            np_arr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            if frame is None:
+                await websocket.send_json({"error": "Invalid image data"})
                 continue
 
+            # Run YOLO detection
             results = yolo_model(frame)
 
             detected_objects = []
@@ -120,23 +93,17 @@ async def video_detect(websocket: WebSocket):
                         }
                     )
 
-            print(f"Sending {len(detected_objects)} detections to client")
+            print(f"🎯 Detected {len(detected_objects)} object(s)")
             await websocket.send_json({"detections": detected_objects})
 
-            await asyncio.sleep(0.05)  # ~20 FPS
-
-    except websockets.exceptions.ConnectionClosedOK:
-        print("Client disconnected normally")
-    except websockets.exceptions.ConnectionClosedError as e:
-        print(f"Client disconnected with error: {str(e)}")
+    except websockets.exceptions.ConnectionClosed:
+        print("🔌 WebSocket disconnected")
     except Exception as e:
-        print(f"Error in camera websocket: {str(e)}")
+        print(f"❌ Error in video_detect: {e}")
         try:
             await websocket.send_json({"error": str(e)})
         except:
             pass
     finally:
-        print("Closing camera and WebSocket connection")
-        if cap and cap.isOpened():
-            cap.release()
         await websocket.close()
+        print("✅ WebSocket closed")
